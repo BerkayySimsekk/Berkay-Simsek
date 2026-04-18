@@ -1,4 +1,4 @@
-import { useDeferredValue, useState } from 'react'
+import { useDeferredValue, useEffect, useState } from 'react'
 import './App.css'
 import { CaseInsightPanels } from './components/CaseInsightPanels'
 import { DetailPanel } from './components/DetailPanel'
@@ -10,6 +10,7 @@ import { RouteTimelinePanel } from './components/RouteTimelinePanel'
 import { StatusPanel } from './components/StatusPanel'
 import { TimelinePanel } from './components/TimelinePanel'
 import { useInvestigationData } from './hooks/useInvestigationData'
+import { useMediaQuery } from './hooks/useMediaQuery'
 import { usePageRoute } from './hooks/usePageRoute'
 import { normalizeText } from './lib/investigation'
 
@@ -67,8 +68,12 @@ function App() {
   const [locationFilter, setLocationFilter] = useState('all')
   const [contentFilter, setContentFilter] = useState('all')
   const [selection, setSelection] = useState(null)
+  const [mobileTab, setMobileTab] = useState('timeline')
+  const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false)
+  const [isDetailDrawerOpen, setIsDetailDrawerOpen] = useState(false)
 
   const { currentPage, goToDashboard, goToMapView, goToRouteFlow } = usePageRoute()
+  const isCompactLayout = useMediaQuery('(max-width: 980px)')
   const deferredSearch = useDeferredValue(searchInput)
   const normalizedSearch = normalizeText(deferredSearch)
   const { error, model, sourceErrors, status } = useInvestigationData(refreshToken)
@@ -88,6 +93,25 @@ function App() {
     personFilter !== 'all' ||
     locationFilter !== 'all' ||
     contentFilter !== 'all'
+  const hasActiveFiltersApplied = Boolean(hasActiveFilters)
+  const filterSheetOpen = isCompactLayout && isFilterSheetOpen
+  const detailDrawerOpen = isCompactLayout && isDetailDrawerOpen
+
+  useEffect(() => {
+    if (!isCompactLayout || typeof document === 'undefined') {
+      return undefined
+    }
+
+    const originalOverflow = document.body.style.overflow
+
+    if (filterSheetOpen || detailDrawerOpen) {
+      document.body.style.overflow = 'hidden'
+    }
+
+    return () => {
+      document.body.style.overflow = originalOverflow
+    }
+  }, [detailDrawerOpen, filterSheetOpen, isCompactLayout])
 
   const handleRetry = () => {
     setRefreshToken((current) => current + 1)
@@ -98,6 +122,48 @@ function App() {
     setPersonFilter('all')
     setLocationFilter('all')
     setContentFilter('all')
+  }
+
+  const handleSelectPerson = (personId) => {
+    setSelection({ type: 'person', id: personId })
+
+    if (isCompactLayout) {
+      setIsDetailDrawerOpen(true)
+    }
+  }
+
+  const handleSelectRecord = (recordId) => {
+    setSelection({ type: 'record', id: recordId })
+
+    if (isCompactLayout) {
+      setIsDetailDrawerOpen(true)
+    }
+  }
+
+  const showTimelinePanel = () => {
+    setMobileTab('timeline')
+    setIsDetailDrawerOpen(false)
+  }
+
+  const showPeoplePanel = () => {
+    setMobileTab('people')
+    setIsDetailDrawerOpen(false)
+  }
+
+  const toggleFilterSheet = () => {
+    setIsFilterSheetOpen((current) => !current)
+  }
+
+  const closeFilterSheet = () => {
+    setIsFilterSheetOpen(false)
+  }
+
+  const toggleDetailDrawer = () => {
+    setIsDetailDrawerOpen((current) => !current)
+  }
+
+  const closeDetailDrawer = () => {
+    setIsDetailDrawerOpen(false)
   }
 
   if (status === 'loading' && !model) {
@@ -181,6 +247,153 @@ function App() {
     </div>
   ) : null
 
+  const detailPanel = (
+    <DetailPanel
+      fallbackMessage={
+        filteredRecords.length === 0
+          ? 'Adjust the search or filters to restore a trail view.'
+          : 'Select a person or a record to inspect linked evidence.'
+      }
+      peopleById={model?.peopleById ?? new Map()}
+      recordsById={model?.recordsById ?? new Map()}
+      selection={currentSelection}
+      onSelectPerson={handleSelectPerson}
+      onSelectRecord={handleSelectRecord}
+    />
+  )
+
+  const compactWorkspace = (
+    <>
+      <div className="compact-workspace-toolbar panel">
+        <button
+          className={`ghost-button compact-filter-button ${filterSheetOpen ? 'is-active' : ''}`}
+          onClick={toggleFilterSheet}
+          type="button"
+        >
+          {hasActiveFiltersApplied ? 'Filters on' : 'Filters'}
+        </button>
+
+        <div aria-label="Dashboard sections" className="compact-tab-group" role="tablist">
+          <button
+            aria-selected={mobileTab === 'timeline' && !detailDrawerOpen}
+            className={`page-tab ${mobileTab === 'timeline' && !detailDrawerOpen ? 'is-active' : ''}`}
+            onClick={showTimelinePanel}
+            role="tab"
+            type="button"
+          >
+            Timeline
+          </button>
+
+          <button
+            aria-selected={mobileTab === 'people' && !detailDrawerOpen}
+            className={`page-tab ${mobileTab === 'people' && !detailDrawerOpen ? 'is-active' : ''}`}
+            onClick={showPeoplePanel}
+            role="tab"
+            type="button"
+          >
+            People
+          </button>
+
+          <button
+            aria-selected={detailDrawerOpen}
+            className={`page-tab ${detailDrawerOpen ? 'is-active' : ''}`}
+            onClick={toggleDetailDrawer}
+            role="tab"
+            type="button"
+          >
+            Detail
+          </button>
+        </div>
+      </div>
+
+      <div className="compact-workspace-stack">
+        {mobileTab === 'people' ? (
+          <PeoplePanel
+            people={visiblePeople}
+            selectedPersonId={focusedPersonId}
+            onSelectPerson={handleSelectPerson}
+          />
+        ) : (
+          <TimelinePanel
+            emptyState={
+              hasActiveFiltersApplied
+                ? 'No records match the current search and filter combination.'
+                : 'No linked investigation records are available.'
+            }
+            focusedPersonId={focusedPersonId}
+            records={filteredRecords}
+            selectedRecordId={currentSelection?.type === 'record' ? currentSelection.id : null}
+            onSelectPerson={handleSelectPerson}
+            onSelectRecord={handleSelectRecord}
+          />
+        )}
+      </div>
+
+      {filterSheetOpen ? (
+        <div className="overlay-backdrop" onClick={closeFilterSheet}>
+          <div
+            aria-modal="true"
+            className="overlay-sheet-frame"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <FiltersPanel
+              className="filter-sheet-panel"
+              contentFilter={contentFilter}
+              contentFilters={CONTENT_FILTERS}
+              hasActiveFilters={hasActiveFiltersApplied}
+              headerAction={
+                <button className="ghost-button" onClick={closeFilterSheet} type="button">
+                  Close
+                </button>
+              }
+              locationFilter={locationFilter}
+              locations={model?.locations ?? []}
+              onReset={resetFilters}
+              personFilter={personFilter}
+              people={model?.people ?? []}
+              searchInput={searchInput}
+              setContentFilter={setContentFilter}
+              setLocationFilter={setLocationFilter}
+              setPersonFilter={setPersonFilter}
+              setSearchInput={setSearchInput}
+            />
+          </div>
+        </div>
+      ) : null}
+
+      {detailDrawerOpen ? (
+        <div className="overlay-backdrop overlay-backdrop--drawer" onClick={closeDetailDrawer}>
+          <div
+            aria-modal="true"
+            className="detail-drawer-shell"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <DetailPanel
+              className="detail-panel--drawer"
+              fallbackMessage={
+                filteredRecords.length === 0
+                  ? 'Adjust the search or filters to restore a trail view.'
+                  : 'Select a person or a record to inspect linked evidence.'
+              }
+              headerAction={
+                <button className="ghost-button" onClick={closeDetailDrawer} type="button">
+                  Close
+                </button>
+              }
+              peopleById={model?.peopleById ?? new Map()}
+              recordsById={model?.recordsById ?? new Map()}
+              selection={currentSelection}
+              onSelectPerson={handleSelectPerson}
+              onSelectRecord={handleSelectRecord}
+            />
+          </div>
+        </div>
+      ) : null}
+    </>
+  )
+
   const dashboardPage = (
     <>
       <header className="case-header panel">
@@ -203,57 +416,50 @@ function App() {
 
       {sourceStatusBanner}
 
-      <div className="workspace-grid">
-        <div className="sidebar-stack">
-          <FiltersPanel
-            contentFilter={contentFilter}
-            contentFilters={CONTENT_FILTERS}
-            hasActiveFilters={Boolean(hasActiveFilters)}
-            locationFilter={locationFilter}
-            locations={model?.locations ?? []}
-            onReset={resetFilters}
-            personFilter={personFilter}
-            people={model?.people ?? []}
-            searchInput={searchInput}
-            setContentFilter={setContentFilter}
-            setLocationFilter={setLocationFilter}
-            setPersonFilter={setPersonFilter}
-            setSearchInput={setSearchInput}
+      {isCompactLayout ? (
+        compactWorkspace
+      ) : (
+        <div className="workspace-grid">
+          <div className="sidebar-stack">
+            <FiltersPanel
+              contentFilter={contentFilter}
+              contentFilters={CONTENT_FILTERS}
+              hasActiveFilters={hasActiveFiltersApplied}
+              locationFilter={locationFilter}
+              locations={model?.locations ?? []}
+              onReset={resetFilters}
+              personFilter={personFilter}
+              people={model?.people ?? []}
+              searchInput={searchInput}
+              setContentFilter={setContentFilter}
+              setLocationFilter={setLocationFilter}
+              setPersonFilter={setPersonFilter}
+              setSearchInput={setSearchInput}
+            />
+
+            <PeoplePanel
+              people={visiblePeople}
+              selectedPersonId={focusedPersonId}
+              onSelectPerson={handleSelectPerson}
+            />
+          </div>
+
+          <TimelinePanel
+            emptyState={
+              hasActiveFiltersApplied
+                ? 'No records match the current search and filter combination.'
+                : 'No linked investigation records are available.'
+            }
+            focusedPersonId={focusedPersonId}
+            records={filteredRecords}
+            selectedRecordId={currentSelection?.type === 'record' ? currentSelection.id : null}
+            onSelectPerson={handleSelectPerson}
+            onSelectRecord={handleSelectRecord}
           />
 
-          <PeoplePanel
-            people={visiblePeople}
-            selectedPersonId={focusedPersonId}
-            onSelectPerson={(personId) => setSelection({ type: 'person', id: personId })}
-          />
+          {detailPanel}
         </div>
-
-        <TimelinePanel
-          emptyState={
-            hasActiveFilters
-              ? 'No records match the current search and filter combination.'
-              : 'No linked investigation records are available.'
-          }
-          focusedPersonId={focusedPersonId}
-          records={filteredRecords}
-          selectedRecordId={currentSelection?.type === 'record' ? currentSelection.id : null}
-          onSelectPerson={(personId) => setSelection({ type: 'person', id: personId })}
-          onSelectRecord={(recordId) => setSelection({ type: 'record', id: recordId })}
-        />
-
-        <DetailPanel
-          fallbackMessage={
-            filteredRecords.length === 0
-              ? 'Adjust the search or filters to restore a trail view.'
-              : 'Select a person or a record to inspect linked evidence.'
-          }
-          peopleById={model?.peopleById ?? new Map()}
-          recordsById={model?.recordsById ?? new Map()}
-          selection={currentSelection}
-          onSelectPerson={(personId) => setSelection({ type: 'person', id: personId })}
-          onSelectRecord={(recordId) => setSelection({ type: 'record', id: recordId })}
-        />
-      </div>
+      )}
     </>
   )
 

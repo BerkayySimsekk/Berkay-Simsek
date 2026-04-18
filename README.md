@@ -20,12 +20,14 @@ This app is a live investigation dashboard for the “Missing Podo: The Ankara C
 4. Open in browser
 - The app will be available at: http://localhost:5173/ (or the URL shown in the terminal)
 
-## The Organization of the App
-1. The top summary tells you the latest confirmed place in Podo’s trail, which person the app currently considers the highest-interest lead, and how many data sources were loaded successfully.
+## Organization of the App
+1. At the top, the page navigation lets you switch between the main Investigation Dashboard, the Investigation Map, and the dedicated Podo Route Flow page. Inside the dashboard header, the summary panels now focus on “Last seen with” and “Most suspicious,” each with a short explanation of why that result was chosen.
 
-2. On the left, you can search and filter by person, location, and content type. Under that, you get a list of linked people. In the center, you see the main timeline of events in chronological order. On the right, you get a detail view for whatever you select.
+2. On desktop, the dashboard is organized as a three-part workspace: search and filters plus linked people on the left, the main investigation timeline in the center, and the detail view on the right. On smaller screens, the layout switches to a compact responsive mode with Timeline, People, and Detail tabs, while filters open in a sheet and the detail view opens in a drawer.
 
-3. If you click a person, the app shows that person’s aliases, why they matter, where they appear, which sources mention them, and all connected records. If you click a record, it shows the full content, the people involved, the metadata, and other related records around it.
+3. The center timeline combines all five live data sources into one chronological investigation trail. It links related records by person and location, and it now uses virtualization so scrolling stays smoother as the number of records grows.
+
+4. If you click a person, the app shows the resolved identity profile, including merged aliases, fuzzy-match reasoning, confidence, locations, source breakdown, and all connected records. If you click a record, it shows the full content, the people involved, the metadata, the original recorded name where relevant, and other related records around it.
 
 ## Implemented Bonus Features
 1. Podo route flow feature that can accessed through the "Podo Route Flow" button on the top right which allows you to follow Podo's movement stop by stop, inspect the evidence supporting each location, and keep weaker or conflicting clues visible instead of flattening them into one story.

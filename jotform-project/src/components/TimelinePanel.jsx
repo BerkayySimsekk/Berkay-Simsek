@@ -1,5 +1,64 @@
+import { forwardRef } from 'react'
+import { Virtuoso } from 'react-virtuoso'
+
 function sourcePillClass(record) {
   return `source-pill ${record.sourceId}`
+}
+
+const TimelineList = forwardRef(function TimelineList(props, ref) {
+  return <div {...props} className={['timeline-list', props.className].filter(Boolean).join(' ')} ref={ref} />
+})
+
+function renderTimelineCard(record, focusedPersonId, selectedRecordId, onSelectPerson, onSelectRecord) {
+  return (
+    <button
+      className={`timeline-card ${selectedRecordId === record.id ? 'is-selected' : ''}`}
+      onClick={() => onSelectRecord(record.id)}
+      type="button"
+    >
+      <div className="timeline-card-head">
+        <div className="timeline-header-copy">
+          <span className="timeline-time">{record.timeLabel}</span>
+          <h3 className="timeline-title">{record.title}</h3>
+          <p className="timeline-copy">
+            <span className="timeline-location">{record.location}</span>
+            {' · '}
+            {record.timestampLabel}
+          </p>
+        </div>
+        <span className={sourcePillClass(record)}>{record.sourceLabel}</span>
+      </div>
+
+      <p className="card-copy">{record.content || 'No descriptive content attached to this record.'}</p>
+
+      <div className="people-row">
+        {record.people.map((person) => (
+          <button
+            className={`person-chip ${focusedPersonId === person.key ? 'is-active' : ''} ${
+              record.personKeys.includes('podo') && person.key !== 'podo' ? 'is-highlighted' : ''
+            }`}
+            key={`${record.id}-${person.key}`}
+            onClick={(event) => {
+              event.stopPropagation()
+              onSelectPerson(person.key)
+            }}
+            type="button"
+          >
+            {person.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="timeline-meta">
+        {record.flags.map((flag) => (
+          <span className={`flag-pill ${flag.tone}`} key={flag.label}>
+            {flag.label}
+          </span>
+        ))}
+        <span className="detail-pill">{record.relatedRecordIds.length} connected records</span>
+      </div>
+    </button>
+  )
 }
 
 export function TimelinePanel({
@@ -29,58 +88,23 @@ export function TimelinePanel({
           <p className="empty-copy">{emptyState}</p>
         </div>
       ) : (
-        <div className="timeline-list">
-          {records.map((record) => (
-            <button
-              className={`timeline-card ${selectedRecordId === record.id ? 'is-selected' : ''}`}
-              key={record.id}
-              onClick={() => onSelectRecord(record.id)}
-              type="button"
-            >
-              <div className="timeline-card-head">
-                <div className="timeline-header-copy">
-                  <span className="timeline-time">{record.timeLabel}</span>
-                  <h3 className="timeline-title">{record.title}</h3>
-                  <p className="timeline-copy">
-                    <span className="timeline-location">{record.location}</span>
-                    {' · '}
-                    {record.timestampLabel}
-                  </p>
-                </div>
-                <span className={sourcePillClass(record)}>{record.sourceLabel}</span>
-              </div>
-
-              <p className="card-copy">{record.content || 'No descriptive content attached to this record.'}</p>
-
-              <div className="people-row">
-                {record.people.map((person) => (
-                  <button
-                    className={`person-chip ${focusedPersonId === person.key ? 'is-active' : ''} ${
-                      record.personKeys.includes('podo') && person.key !== 'podo' ? 'is-highlighted' : ''
-                    }`}
-                    key={`${record.id}-${person.key}`}
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      onSelectPerson(person.key)
-                    }}
-                    type="button"
-                  >
-                    {person.label}
-                  </button>
-                ))}
-              </div>
-
-              <div className="timeline-meta">
-                {record.flags.map((flag) => (
-                  <span className={`flag-pill ${flag.tone}`} key={flag.label}>
-                    {flag.label}
-                  </span>
-                ))}
-                <span className="detail-pill">{record.relatedRecordIds.length} connected records</span>
-              </div>
-            </button>
-          ))}
-        </div>
+        <Virtuoso
+          components={{ List: TimelineList }}
+          computeItemKey={(_, record) => record.id}
+          data={records}
+          defaultItemHeight={220}
+          increaseViewportBy={{ bottom: 900, top: 300 }}
+          itemContent={(_, record) =>
+            renderTimelineCard(
+              record,
+              focusedPersonId,
+              selectedRecordId,
+              onSelectPerson,
+              onSelectRecord,
+            )
+          }
+          useWindowScroll
+        />
       )}
     </section>
   )

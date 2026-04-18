@@ -232,7 +232,9 @@ function renderRecordDetail(record, recordsById, onSelectPerson, onSelectRecord)
 }
 
 export function DetailPanel({
+  className = '',
   fallbackMessage,
+  headerAction = null,
   peopleById,
   recordsById,
   selection,
@@ -243,12 +245,13 @@ export function DetailPanel({
   const selectedRecord = selection?.type === 'record' ? recordsById.get(selection.id) : null
 
   return (
-    <section className="panel panel-section detail-panel">
+    <section className={`panel panel-section detail-panel ${className}`.trim()}>
       <div className="panel-header">
         <div>
           <h2 className="panel-title">Detail View</h2>
           <p className="panel-subtitle">Inspect the selected person or record with full context.</p>
         </div>
+        {headerAction ? <div className="panel-header-actions">{headerAction}</div> : null}
       </div>
 
       {selectedPerson ? renderPersonDetail(selectedPerson, recordsById, onSelectRecord) : null}

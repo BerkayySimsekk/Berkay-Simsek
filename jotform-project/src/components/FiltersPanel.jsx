@@ -1,6 +1,8 @@
 export function FiltersPanel({
+  className = '',
   contentFilter,
   contentFilters,
+  headerAction = null,
   hasActiveFilters,
   locationFilter,
   locations,
@@ -14,16 +16,21 @@ export function FiltersPanel({
   setSearchInput,
 }) {
   return (
-    <section className="panel panel-section">
+    <section className={`panel panel-section ${className}`.trim()}>
       <div className="panel-header">
         <div>
           <h2 className="panel-title">Search & Filters</h2>
           <p className="panel-subtitle">Narrow the trail by person, place, or record type.</p>
         </div>
-        {hasActiveFilters ? (
-          <button className="ghost-button" onClick={onReset} type="button">
-            Reset
-          </button>
+        {(hasActiveFilters || headerAction) ? (
+          <div className="panel-header-actions">
+            {hasActiveFilters ? (
+              <button className="ghost-button" onClick={onReset} type="button">
+                Reset
+              </button>
+            ) : null}
+            {headerAction}
+          </div>
         ) : null}
       </div>
 
