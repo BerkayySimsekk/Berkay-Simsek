@@ -1,120 +1,266 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
+import { useDeferredValue, useState } from 'react'
 import './App.css'
+import { DetailPanel } from './components/DetailPanel'
+import { FiltersPanel } from './components/FiltersPanel'
+import { PeoplePanel } from './components/PeoplePanel'
+import { StatusPanel } from './components/StatusPanel'
+import { TimelinePanel } from './components/TimelinePanel'
+import { useInvestigationData } from './hooks/useInvestigationData'
+import { normalizeText } from './lib/investigation'
+
+const CONTENT_FILTERS = [
+  { value: 'all', label: 'All Records' },
+  { value: 'checkins', label: 'Check-Ins' },
+  { value: 'messages', label: 'Messages' },
+  { value: 'sightings', label: 'Sightings' },
+  { value: 'notes', label: 'Notes' },
+  { value: 'tips', label: 'Tips' },
+]
+
+function filterRecords(records, filters) {
+  return records.filter((record) => {
+    if (filters.person !== 'all') {
+      const hasPerson = record.people.some((person) => person.key === filters.person)
+
+      if (!hasPerson) {
+        return false
+      }
+    }
+
+    if (filters.location !== 'all' && record.location !== filters.location) {
+      return false
+    }
+
+    if (filters.content !== 'all' && record.sourceId !== filters.content) {
+      return false
+    }
+
+    if (!filters.search) {
+      return true
+    }
+
+    return record.searchText.includes(filters.search)
+  })
+}
+
+function buildVisiblePeople(records, people) {
+  const personIds = new Set()
+
+  records.forEach((record) => {
+    record.people.forEach((person) => {
+      personIds.add(person.key)
+    })
+  })
+
+  return people.filter((person) => personIds.has(person.id))
+}
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [refreshToken, setRefreshToken] = useState(0)
+  const [searchInput, setSearchInput] = useState('')
+  const [personFilter, setPersonFilter] = useState('all')
+  const [locationFilter, setLocationFilter] = useState('all')
+  const [contentFilter, setContentFilter] = useState('all')
+  const [selection, setSelection] = useState(null)
+
+  const deferredSearch = useDeferredValue(searchInput)
+  const normalizedSearch = normalizeText(deferredSearch)
+  const { error, model, sourceErrors, status } = useInvestigationData(refreshToken)
+
+  const filteredRecords = model
+    ? filterRecords(model.records, {
+        content: contentFilter,
+        location: locationFilter,
+        person: personFilter,
+        search: normalizedSearch,
+      })
+    : []
+
+  const visiblePeople = model ? buildVisiblePeople(filteredRecords, model.people) : []
+  const hasActiveFilters =
+    searchInput.trim() ||
+    personFilter !== 'all' ||
+    locationFilter !== 'all' ||
+    contentFilter !== 'all'
+
+  const handleRetry = () => {
+    setRefreshToken((current) => current + 1)
+  }
+
+  const resetFilters = () => {
+    setSearchInput('')
+    setPersonFilter('all')
+    setLocationFilter('all')
+    setContentFilter('all')
+  }
+
+  if (status === 'loading' && !model) {
+    return (
+      <div className="app-shell">
+        <StatusPanel
+          title="Loading Ankara case records"
+          message="Fetching cross-form submissions and building linked person clusters."
+          variant="loading"
+        />
+      </div>
+    )
+  }
+
+  if (status === 'error' && !model) {
+    return (
+      <div className="app-shell">
+        <StatusPanel
+          actionLabel="Retry"
+          message={error}
+          onAction={handleRetry}
+          title="Investigation data could not be loaded"
+          variant="error"
+        />
+      </div>
+    )
+  }
+
+  const sourceSummary = model?.sourceSummary ?? { loaded: 0, total: 0 }
+  const topSuspect = model?.topSuspect ?? null
+  const lastKnownRecord = model?.lastKnownRecord ?? null
+  const filteredRecordIds = new Set(filteredRecords.map((record) => record.id))
+  const visiblePersonIds = new Set(visiblePeople.map((person) => person.id))
+  let currentSelection = null
+
+  if (model?.records.length) {
+    const isSelectedRecordVisible =
+      selection?.type === 'record' && filteredRecordIds.has(selection.id)
+    const isSelectedPersonVisible =
+      selection?.type === 'person' && visiblePersonIds.has(selection.id)
+
+    if (isSelectedRecordVisible || isSelectedPersonVisible) {
+      currentSelection = selection
+    } else {
+      const fallbackRecord = filteredRecords[filteredRecords.length - 1] ?? null
+      const fallbackPerson = visiblePeople[0] ?? null
+
+      if (fallbackRecord) {
+        currentSelection = { type: 'record', id: fallbackRecord.id }
+      } else if (fallbackPerson) {
+        currentSelection = { type: 'person', id: fallbackPerson.id }
+      }
+    }
+  }
+
+  const focusedPersonId = currentSelection?.type === 'person' ? currentSelection.id : null
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
+    <div className="app-shell">
+      <header className="case-header panel">
+        <div className="case-copy">
+          <p className="eyebrow">Frontend Investigation Dashboard</p>
+          <h1>Missing Podo: The Ankara Case</h1>
+          <p className="lede">
+            Track Podo&apos;s final known route, compare form submissions, and surface
+            the people whose records become more suspicious when the sources are
+            linked together.
           </p>
         </div>
-        <button
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
 
-      <div className="ticks"></div>
+        <div className="summary-grid">
+          <article className="summary-card">
+            <span className="summary-label">Last confirmed trail point</span>
+            <strong>{lastKnownRecord?.location ?? 'Unknown location'}</strong>
+            <span className="summary-meta">
+              {lastKnownRecord?.timestampLabel ?? 'No timestamp available'}
+            </span>
+          </article>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
+          <article className="summary-card accent-card">
+            <span className="summary-label">Highest-interest person</span>
+            <strong>{topSuspect?.displayName ?? 'No suspect identified'}</strong>
+            <span className="summary-meta">
+              {topSuspect
+                ? `${topSuspect.classification} · score ${topSuspect.suspicionScore}`
+                : 'Awaiting linked records'}
+            </span>
+          </article>
+
+          <article className="summary-card">
+            <span className="summary-label">Sources loaded</span>
+            <strong>
+              {sourceSummary.loaded}/{sourceSummary.total}
+            </strong>
+            <span className="summary-meta">
+              {model?.records.length ?? 0} records cross-referenced in the case file
+            </span>
+          </article>
         </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+      </header>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+      {status === 'loading' && model ? (
+        <div className="status-banner info-banner">Refreshing investigation data…</div>
+      ) : null}
+
+      {sourceErrors.length > 0 ? (
+        <div className="status-banner warning-banner">
+          <div>
+            Loaded {sourceSummary.loaded} of {sourceSummary.total} sources. Missing:{' '}
+            {sourceErrors.map((issue) => issue.sourceLabel).join(', ')}.
+          </div>
+          <button className="banner-button" onClick={handleRetry} type="button">
+            Retry failed sources
+          </button>
+        </div>
+      ) : null}
+
+      <div className="workspace-grid">
+        <div className="sidebar-stack">
+          <FiltersPanel
+            contentFilter={contentFilter}
+            contentFilters={CONTENT_FILTERS}
+            hasActiveFilters={Boolean(hasActiveFilters)}
+            locationFilter={locationFilter}
+            locations={model?.locations ?? []}
+            onReset={resetFilters}
+            personFilter={personFilter}
+            people={model?.people ?? []}
+            searchInput={searchInput}
+            setContentFilter={setContentFilter}
+            setLocationFilter={setLocationFilter}
+            setPersonFilter={setPersonFilter}
+            setSearchInput={setSearchInput}
+          />
+
+          <PeoplePanel
+            people={visiblePeople}
+            selectedPersonId={focusedPersonId}
+            onSelectPerson={(personId) => setSelection({ type: 'person', id: personId })}
+          />
+        </div>
+
+        <TimelinePanel
+          emptyState={
+            hasActiveFilters
+              ? 'No records match the current search and filter combination.'
+              : 'No linked investigation records are available.'
+          }
+          focusedPersonId={focusedPersonId}
+          records={filteredRecords}
+          selectedRecordId={currentSelection?.type === 'record' ? currentSelection.id : null}
+          onSelectPerson={(personId) => setSelection({ type: 'person', id: personId })}
+          onSelectRecord={(recordId) => setSelection({ type: 'record', id: recordId })}
+        />
+
+        <DetailPanel
+          fallbackMessage={
+            filteredRecords.length === 0
+              ? 'Adjust the search or filters to restore a trail view.'
+              : 'Select a person or a record to inspect linked evidence.'
+          }
+          peopleById={model?.peopleById ?? new Map()}
+          recordsById={model?.recordsById ?? new Map()}
+          selection={currentSelection}
+          onSelectPerson={(personId) => setSelection({ type: 'person', id: personId })}
+          onSelectRecord={(recordId) => setSelection({ type: 'record', id: recordId })}
+        />
+      </div>
+    </div>
   )
 }
 
