@@ -8,18 +8,17 @@ This app is a live investigation dashboard for the “Missing Podo: The Ankara C
 
 ## Getting Started
 1. Clone the repository
-    git clone https://github.com/BerkayySimsekk/Berkay-Simsek
-    cd jotform-project
+- git clone https://github.com/BerkayySimsekk/Berkay-Simsek
+- cd jotform-project
 
 2. Install dependencies
-    npm install
+- npm install
 
 3. Start the development server
-    npm run dev
+- npm run dev
 
 4. Open in browser
-    The app will be available at:
-    http://localhost:5173/ (or the URL shown in the terminal)
+- The app will be available at: http://localhost:5173/ (or the URL shown in the terminal)
 
 ## The Organization of the App
 1. The top summary tells you the latest confirmed place in Podo’s trail, which person the app currently considers the highest-interest lead, and how many data sources were loaded successfully.
