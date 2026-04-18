@@ -34,3 +34,5 @@ This app is a live investigation dashboard for the “Missing Podo: The Ankara C
 
 3. Summary panels for "Last seen with" and "Most suspicious" can be seen on the top right of the investigation dashboard which include short reasonings.
 
+4. Smarter person matching feature is implemented through a fuzzy identity resolver that can merge variants like abbreviations, initials, and minor misspellings using name similarity plus context such as shared locations, nearby times, and repeated co-occurrence. 
+

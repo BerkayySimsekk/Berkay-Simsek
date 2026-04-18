@@ -1,4 +1,5 @@
 import { buildSummaryInsights, scorePeople } from './caseInsights.js'
+import { resolvePeopleFromRecords } from './personMatching.js'
 
 const PODO_KEY = 'podo'
 const COLLATOR = new Intl.Collator('tr', { sensitivity: 'base' })
@@ -26,24 +27,6 @@ export function normalizeText(value = '') {
     .replace(/[^\p{L}\p{N}\s]/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim()
-}
-
-function normalizePersonKey(name) {
-  const normalized = normalizeText(name)
-
-  if (!normalized) {
-    return ''
-  }
-
-  const parts = normalized.split(' ')
-
-  if (parts.length === 1) {
-    return parts[0]
-  }
-
-  const significantTail = parts.slice(1).filter((part) => part.length > 1)
-
-  return significantTail.length > 0 ? `${parts[0]} ${significantTail[0]}` : parts[0]
 }
 
 function answerLookup(answers) {
@@ -192,18 +175,42 @@ function buildSearchText(record) {
     [
       record.sourceLabel,
       record.title,
+      record.rawTitle,
       record.location,
       record.content,
       ...record.people.map((person) => person.label),
+      ...record.participants.map((participant) => participant.rawLabel || participant.label),
       ...record.participants.map((participant) => participant.role),
     ].join(' '),
   )
+}
+
+function participantLabel(record, role) {
+  return record.participants.find((participant) => participant.role === role)?.label || null
+}
+
+function buildResolvedTitle(record) {
+  switch (record.sourceId) {
+    case 'checkins':
+      return `${participantLabel(record, 'subject') || 'Unknown person'} checked in`
+    case 'messages':
+      return `${participantLabel(record, 'sender') || 'Unknown sender'} to ${participantLabel(record, 'recipient') || 'Unknown recipient'}`
+    case 'sightings':
+      return `${participantLabel(record, 'subject') || 'Unknown person'} seen with ${participantLabel(record, 'seen with') || 'unknown companion'}`
+    case 'notes':
+      return `Note by ${participantLabel(record, 'author') || 'Unknown author'}`
+    case 'tips':
+      return `Anonymous tip about ${participantLabel(record, 'suspect') || 'unknown suspect'}`
+    default:
+      return record.rawTitle || record.title
+  }
 }
 
 function normalizeSubmission(source, submission) {
   const values = answerLookup(submission.answers)
   const timestamp = parseTimestamp(values.timestamp)
   const participants = createParticipants(source.id, values).filter((participant) => participant.label)
+  const rawTitle = buildTitle(source.id, values)
 
   return {
     id: `${source.id}:${submission.id}`,
@@ -213,100 +220,16 @@ function normalizeSubmission(source, submission) {
     flags: buildFlags(source.id, values),
     location: values.location || 'Unknown location',
     participants,
+    rawTitle,
     sourceId: source.id,
     sourceLabel: source.label,
     sortTime: timestamp?.getTime() || 0,
     timestamp,
     timestampLabel: formatDateTime(timestamp),
     timeLabel: formatClock(timestamp),
-    title: buildTitle(source.id, values),
+    title: rawTitle,
     values,
   }
-}
-
-function createPersonBucket(id) {
-  return {
-    aliasCounts: new Map(),
-    id,
-    locations: new Set(),
-    recordIds: new Set(),
-    sourceBreakdown: new Map(),
-  }
-}
-
-function pickDisplayName(aliasCounts) {
-  return [...aliasCounts.entries()]
-    .sort((left, right) => {
-      if (right[1] !== left[1]) {
-        return right[1] - left[1]
-      }
-
-      return COLLATOR.compare(left[0], right[0])
-    })[0]?.[0]
-}
-
-function enrichPeople(records) {
-  const buckets = new Map()
-
-  records.forEach((record) => {
-    const seenKeys = new Set()
-
-    record.participants.forEach((participant) => {
-      const key = normalizePersonKey(participant.label)
-
-      if (!key) {
-        return
-      }
-
-      participant.key = key
-
-      if (!buckets.has(key)) {
-        buckets.set(key, createPersonBucket(key))
-      }
-
-      const bucket = buckets.get(key)
-      bucket.aliasCounts.set(
-        participant.label,
-        (bucket.aliasCounts.get(participant.label) || 0) + 1,
-      )
-
-      if (!seenKeys.has(key)) {
-        bucket.recordIds.add(record.id)
-        bucket.locations.add(record.location)
-        bucket.sourceBreakdown.set(
-          record.sourceId,
-          (bucket.sourceBreakdown.get(record.sourceId) || 0) + 1,
-        )
-        seenKeys.add(key)
-      }
-    })
-
-    record.personKeys = [...seenKeys]
-  })
-
-  return [...buckets.values()]
-    .map((bucket) => {
-      const displayName = pickDisplayName(bucket.aliasCounts) || bucket.id
-      const aliases = [...bucket.aliasCounts.keys()].sort((left, right) => COLLATOR.compare(left, right))
-
-      return {
-        aliases,
-        displayName,
-        id: bucket.id,
-        locations: [...bucket.locations].sort((left, right) => COLLATOR.compare(left, right)),
-        recordIds: [...bucket.recordIds],
-        sourceBreakdown: [...bucket.sourceBreakdown.entries()]
-          .sort((left, right) => {
-            if (right[1] !== left[1]) {
-              return right[1] - left[1]
-            }
-
-            return SOURCE_PRIORITY[left[0]] - SOURCE_PRIORITY[right[0]]
-          })
-          .map(([sourceId, count]) => ({ count, sourceId })),
-      }
-    })
-    .sort((left, right) => COLLATOR.compare(left.displayName, right.displayName))
 }
 
 function buildConnectedRecordIds(record, recordsById, peopleIndex, locationIndex) {
@@ -357,10 +280,13 @@ export function buildInvestigationModel(loadedSources, sourceErrors) {
     .flatMap(({ source, submissions }) => submissions.map((submission) => normalizeSubmission(source, submission)))
     .sort((left, right) => left.sortTime - right.sortTime)
 
-  const basePeople = enrichPeople(baseRecords)
+  const { people: basePeople, records: resolvedBaseRecords } = resolvePeopleFromRecords(
+    baseRecords,
+    SOURCE_PRIORITY,
+  )
   const basePeopleById = new Map(basePeople.map((person) => [person.id, person]))
 
-  const recordsForScoring = baseRecords.map((record) => {
+  const recordsForScoring = resolvedBaseRecords.map((record) => {
     const peopleForRecord = unique(record.personKeys)
       .map((key) => {
         const person = basePeopleById.get(key)
@@ -373,13 +299,18 @@ export function buildInvestigationModel(loadedSources, sourceErrors) {
       })
       .filter(Boolean)
 
-    return {
+    const resolvedRecord = {
       ...record,
       participants: record.participants.map((participant) => ({
         ...participant,
-        label: basePeopleById.get(participant.key)?.displayName || participant.label,
+        label: basePeopleById.get(participant.key)?.displayName || participant.rawLabel || participant.label,
       })),
       people: peopleForRecord,
+    }
+
+    return {
+      ...resolvedRecord,
+      title: buildResolvedTitle(resolvedRecord),
     }
   })
 
@@ -387,22 +318,31 @@ export function buildInvestigationModel(loadedSources, sourceErrors) {
   const peopleById = new Map(people.map((person) => [person.id, person]))
 
   const records = recordsForScoring.map((record) => ({
-    ...record,
-    participants: record.participants.map((participant) => ({
-      ...participant,
-      label: peopleById.get(participant.key)?.displayName || participant.label,
-    })),
-    people: unique(record.personKeys)
-      .map((key) => {
-        const person = peopleById.get(key)
+    ...(() => {
+      const resolvedRecord = {
+        ...record,
+        participants: record.participants.map((participant) => ({
+          ...participant,
+          label: peopleById.get(participant.key)?.displayName || participant.rawLabel || participant.label,
+        })),
+        people: unique(record.personKeys)
+          .map((key) => {
+            const person = peopleById.get(key)
 
-        if (!person) {
-          return null
-        }
+            if (!person) {
+              return null
+            }
 
-        return { key, label: person.displayName }
-      })
-      .filter(Boolean),
+            return { key, label: person.displayName }
+          })
+          .filter(Boolean),
+      }
+
+      return {
+        ...resolvedRecord,
+        title: buildResolvedTitle(resolvedRecord),
+      }
+    })(),
   }))
 
   const recordsById = new Map(records.map((record) => [record.id, record]))

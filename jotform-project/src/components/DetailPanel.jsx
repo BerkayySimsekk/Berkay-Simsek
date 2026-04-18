@@ -27,7 +27,32 @@ function renderPersonDetail(person, recordsById, onSelectRecord) {
       <div className="detail-pill-row">
         <span className="detail-pill">Suspicion score {person.suspicionScore}</span>
         <span className="detail-pill">{person.withPodoCount} records with Podo</span>
+        <span className={`status-pill ${person.matchConfidence}`}>{person.matchConfidenceLabel}</span>
+        <span className="detail-pill">{person.aliases.length} recorded variant{person.aliases.length === 1 ? '' : 's'}</span>
       </div>
+
+      <section className="detail-section">
+        <h3 className="detail-section-title">Identity resolution</h3>
+        <p className="detail-body">{person.matchSummary}</p>
+
+        <ol className="reason-list">
+          {person.matchReasons.map((reason) => (
+            <li key={reason}>{reason}</li>
+          ))}
+        </ol>
+
+        <div className="detail-list">
+          {person.aliasDetails.map((aliasDetail) => (
+            <div className="detail-list-item" key={aliasDetail.alias}>
+              <div className="detail-list-title">{aliasDetail.alias}</div>
+              <div className="detail-list-meta">
+                {aliasDetail.mentionCount} mention{aliasDetail.mentionCount === 1 ? '' : 's'} · {aliasDetail.confidenceLabel}
+              </div>
+              <p className="detail-copy">{aliasDetail.reasons.join(' ')}</p>
+            </div>
+          ))}
+        </div>
+      </section>
 
       <section className="detail-section">
         <h3 className="detail-section-title">Why this person matters</h3>
@@ -55,6 +80,21 @@ function renderPersonDetail(person, recordsById, onSelectRecord) {
           ))}
         </div>
       </section>
+
+      {person.uncertainMatches.length > 0 ? (
+        <section className="detail-section">
+          <h3 className="detail-section-title">Close variants left separate</h3>
+          <div className="detail-list">
+            {person.uncertainMatches.map((match) => (
+              <div className="detail-list-item" key={match.alias}>
+                <div className="detail-list-title">{match.alias}</div>
+                <div className="detail-list-meta">Score {match.score} · {match.confidenceLabel}</div>
+                <p className="detail-copy">{match.reasons.join(' ')}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="detail-section">
         <h3 className="detail-section-title">Source breakdown</h3>
@@ -128,9 +168,23 @@ function renderRecordDetail(record, recordsById, onSelectPerson, onSelectRecord)
                 onClick={() => onSelectPerson(participant.key)}
                 type="button"
               >
-                {participant.label}
+                <div className="detail-link-stack">
+                  <span>{participant.label}</span>
+                  {participant.rawLabel && participant.rawLabel !== participant.label ? (
+                    <span className="detail-link-copy">Recorded as {participant.rawLabel}</span>
+                  ) : null}
+                </div>
               </button>
               <span className="detail-pill">{participant.role}</span>
+              {participant.rawLabel && participant.rawLabel !== participant.label ? (
+                <span className={`status-pill ${participant.resolutionConfidence}`}>
+                  {participant.resolutionConfidence === 'high'
+                    ? 'Merged confidently'
+                    : participant.resolutionConfidence === 'medium'
+                      ? 'Merged with context'
+                      : 'Kept as best-fit alias'}
+                </span>
+              ) : null}
             </div>
           ))}
         </div>

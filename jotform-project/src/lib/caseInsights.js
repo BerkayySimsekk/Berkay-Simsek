@@ -66,26 +66,19 @@ function normalizeText(value = '') {
     .trim()
 }
 
-function normalizePersonKey(name) {
-  const normalized = normalizeText(name)
-
-  if (!normalized) {
-    return ''
-  }
-
-  const parts = normalized.split(' ')
-
-  if (parts.length === 1) {
-    return parts[0]
-  }
-
-  const significantTail = parts.slice(1).filter((part) => part.length > 1)
-
-  return significantTail.length > 0 ? `${parts[0]} ${significantTail[0]}` : parts[0]
-}
-
 function unique(values) {
   return [...new Set(values.filter(Boolean))]
+}
+
+function participantKeysByRole(record, roles) {
+  return record.participants
+    .filter((participant) => roles.includes(participant.role))
+    .map((participant) => participant.key)
+    .filter(Boolean)
+}
+
+function participantKey(record, role) {
+  return record.participants.find((participant) => participant.role === role)?.key || ''
 }
 
 function hasKnownTime(record) {
@@ -131,21 +124,15 @@ function isDownplayRecord(record) {
 function activeParticipantKeys(record) {
   switch (record.sourceId) {
     case 'checkins':
-      return [normalizePersonKey(record.values?.personName)]
+      return participantKeysByRole(record, ['subject'])
     case 'messages':
-      return [
-        normalizePersonKey(record.values?.senderName),
-        normalizePersonKey(record.values?.recipientName),
-      ]
+      return participantKeysByRole(record, ['sender', 'recipient'])
     case 'sightings':
-      return [
-        normalizePersonKey(record.values?.personName),
-        normalizePersonKey(record.values?.seenWith),
-      ]
+      return participantKeysByRole(record, ['subject', 'seen with'])
     case 'notes':
-      return [normalizePersonKey(record.values?.authorName)]
+      return participantKeysByRole(record, ['author'])
     case 'tips':
-      return [normalizePersonKey(record.values?.suspectName)]
+      return participantKeysByRole(record, ['suspect'])
     default:
       return []
   }
@@ -219,7 +206,7 @@ function buildSuspicionForPerson(person, records, latestConfirmedPodoTime) {
   )
   const tipRecords = relatedRecords.filter(
     (record) =>
-      record.sourceId === 'tips' && normalizePersonKey(record.values?.suspectName) === person.id,
+      record.sourceId === 'tips' && participantKeysByRole(record, ['suspect']).includes(person.id),
   )
   const secrecyRecords = relatedRecords.filter(isSecrecyRecord)
   const lureMessages = relatedRecords.filter(
@@ -394,7 +381,7 @@ function recordMentionsPerson(record, person) {
 
 function noteCompanionKeys(record, peopleById) {
   const normalized = contentText(record)
-  const authorKey = normalizePersonKey(record.values?.authorName)
+  const authorKey = participantKey(record, 'author')
   const otherPeople = record.personKeys.filter((key) => key !== PODO_KEY)
   const companions = new Set()
 

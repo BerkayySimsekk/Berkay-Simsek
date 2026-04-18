@@ -635,6 +635,17 @@
   flex-wrap: wrap;
 }
 
+.detail-link-stack {
+  display: grid;
+  gap: 4px;
+  text-align: left;
+}
+
+.detail-link-copy {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
 .detail-list-title,
 .source-breakdown-title {
   font-weight: 600;
