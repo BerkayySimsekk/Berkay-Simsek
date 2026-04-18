@@ -1,31 +1,30 @@
 # Jotform Frontend Challenge Project
 
 ## User Information
-Please fill in your information after forking this repository:
-
-- **Name**: [Your Name]
+- **Name**: Berkay Şimşek
 
 ## Project Description
-[Add a brief description of your project here]
+This app is a live investigation dashboard for the “Missing Podo: The Ankara Case” story. When you open it, it pulls records from five different sources: check-ins, messages, sightings, personal notes, and anonymous tips. Its job is to combine those into one timeline so you can follow Podo’s last known movements and quickly see which people keep appearing around that trail.
 
 ## Getting Started
-[Add instructions for setting up and running the project]
+1. Clone the repository
+    git clone https://github.com/BerkayySimsekk/Berkay-Simsek
+    cd jotform-project
 
-# 🚀 Challenge Duyurusu
+2. Install dependencies
+    npm install
 
-## 📅 Tarih ve Saat
-Cumartesi günü başlama saatinden itibaren üç saattir.
+3. Start the development server
+    npm run dev
 
-## 🎯 Challenge Konsepti
-Bu challenge'da, size özel hazırlanmış bir senaryo üzerine web uygulaması geliştirmeniz istenecektir. Challenge başlangıcında senaryo detayları paylaşılacaktır.Katılımcılar, verilen GitHub reposunu fork ederek kendi geliştirme ortamlarını oluşturacaklardır.
+4. Open in browser
+    The app will be available at:
+    http://localhost:5173/ (or the URL shown in the terminal)
 
-## 📦 GitHub Reposu
-Challenge için kullanılacak repo: https://github.com/cemjotform/2026-frontend-challenge-ankara
+## The Organization of the App
+1. The top summary tells you the latest confirmed place in Podo’s trail, which person the app currently considers the highest-interest lead, and how many data sources were loaded successfully.
 
-## 🛠️ Hazırlık Süreci
-1. GitHub reposunu fork edin
-2. Tercih ettiğiniz framework ile geliştirme ortamınızı hazırlayın
-3. Hazırladığınız setup'ı fork ettiğiniz repoya gönderin
+2. On the left, you can search and filter by person, location, and content type. Under that, you get a list of linked people. In the center, you see the main timeline of events in chronological order. On the right, you get a detail view for whatever you select.
 
-## 💡 Önemli Notlar
-- Katılımcılar kendi tercih ettikleri framework'leri kullanabilirler
+3. If you click a person, the app shows that person’s aliases, why they matter, where they appear, which sources mention them, and all connected records. If you click a record, it shows the full content, the people involved, the metadata, and other related records around it.
+
