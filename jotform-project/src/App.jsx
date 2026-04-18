@@ -1,5 +1,6 @@
 import { useDeferredValue, useState } from 'react'
 import './App.css'
+import { CaseInsightPanels } from './components/CaseInsightPanels'
 import { DetailPanel } from './components/DetailPanel'
 import { FiltersPanel } from './components/FiltersPanel'
 import { MapViewPage } from './components/MapViewPage'
@@ -140,8 +141,8 @@ function App() {
   }
 
   const sourceSummary = model?.sourceSummary ?? { loaded: 0, total: 0 }
-  const topSuspect = model?.topSuspect ?? null
-  const lastKnownRecord = model?.lastKnownRecord ?? null
+  const lastSeenWith = model?.lastSeenWith ?? null
+  const mostSuspicious = model?.mostSuspicious ?? null
   const filteredRecordIds = new Set(filteredRecords.map((record) => record.id))
   const visiblePersonIds = new Set(visiblePeople.map((person) => person.id))
   let currentSelection = null
@@ -193,35 +194,7 @@ function App() {
           </p>
         </div>
 
-        <div className="summary-grid">
-          <article className="summary-card">
-            <span className="summary-label">Last confirmed trail point</span>
-            <strong>{lastKnownRecord?.location ?? 'Unknown location'}</strong>
-            <span className="summary-meta">
-              {lastKnownRecord?.timestampLabel ?? 'No timestamp available'}
-            </span>
-          </article>
-
-          <article className="summary-card accent-card">
-            <span className="summary-label">Highest-interest person</span>
-            <strong>{topSuspect?.displayName ?? 'No suspect identified'}</strong>
-            <span className="summary-meta">
-              {topSuspect
-                ? `${topSuspect.classification} · score ${topSuspect.suspicionScore}`
-                : 'Awaiting linked records'}
-            </span>
-          </article>
-
-          <article className="summary-card">
-            <span className="summary-label">Sources loaded</span>
-            <strong>
-              {sourceSummary.loaded}/{sourceSummary.total}
-            </strong>
-            <span className="summary-meta">
-              {model?.records.length ?? 0} records cross-referenced in the case file
-            </span>
-          </article>
-        </div>
+        <CaseInsightPanels lastSeenWith={lastSeenWith} mostSuspicious={mostSuspicious} />
       </header>
 
       {status === 'loading' && model ? (

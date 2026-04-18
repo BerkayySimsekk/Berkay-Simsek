@@ -1,24 +1,7 @@
+import { buildSummaryInsights, scorePeople } from './caseInsights.js'
+
 const PODO_KEY = 'podo'
 const COLLATOR = new Intl.Collator('tr', { sensitivity: 'base' })
-
-const SUSPICION_PATTERNS = [
-  {
-    label: 'A record references secrecy around a final stop.',
-    pattern: /kimse bilmesin|son durak|asil surpriz/,
-  },
-  {
-    label: 'A witness says Podo looked uneasy.',
-    pattern: /tedirgin/,
-  },
-  {
-    label: 'A tip reports a suspicious follow-up phone call.',
-    pattern: /hallettim/,
-  },
-  {
-    label: 'One source says the two were alone together for a while.',
-    pattern: /yalniz kalan|yalniz|uzun sure yalniz/,
-  },
-]
 
 const SOURCE_PRIORITY = {
   checkins: 0,
@@ -245,13 +228,9 @@ function createPersonBucket(id) {
   return {
     aliasCounts: new Map(),
     id,
-    keywordSignals: new Set(),
-    lastWithPodoTime: 0,
     locations: new Set(),
     recordIds: new Set(),
     sourceBreakdown: new Map(),
-    tipScore: 0,
-    withPodoCount: 0,
   }
 }
 
@@ -266,76 +245,11 @@ function pickDisplayName(aliasCounts) {
     })[0]?.[0]
 }
 
-function buildSuspicionResult(person, relatedRecords, latestPodoTime) {
-  if (person.id === PODO_KEY) {
-    return {
-      classification: 'Missing subject',
-      suspicionReasons: ['Podo is the missing subject, not a suspect.'],
-      suspicionScore: 0,
-      statusTone: 'low',
-    }
-  }
-
-  let score = person.tipScore
-  const reasons = []
-
-  if (person.tipScore >= 6) {
-    reasons.push('Anonymous tips point to this person with medium or high confidence.')
-  }
-
-  if (person.withPodoCount > 0) {
-    score += Math.min(person.withPodoCount * 2, 6)
-    reasons.push(`Linked to ${person.withPodoCount} record(s) that directly involve Podo.`)
-  }
-
-  if (person.lastWithPodoTime && latestPodoTime - person.lastWithPodoTime <= 25 * 60 * 1000) {
-    score += 5
-    reasons.push('Appears very late in the confirmed chain before Podo disappears.')
-  }
-
-  if (person.locations.size >= 2 && person.withPodoCount >= 2) {
-    score += 2
-    reasons.push(`Trail follows this person across ${person.locations.size} locations.`)
-  }
-
-  if (person.keywordSignals.size > 0) {
-    score += person.keywordSignals.size * 2
-    reasons.push(...person.keywordSignals)
-  }
-
-  if (relatedRecords.some((record) => record.sourceId === 'messages' && record.values.urgency === 'high')) {
-    score += 1
-  }
-
-  if (reasons.length === 0) {
-    reasons.push('No strong suspicious signal yet; this person is mostly contextual.')
-  }
-
-  let classification = 'Context'
-  let statusTone = 'low'
-
-  if (score >= 12) {
-    classification = 'High interest'
-    statusTone = 'high'
-  } else if (score >= 7) {
-    classification = 'Watch closely'
-    statusTone = 'medium'
-  }
-
-  return {
-    classification,
-    suspicionReasons: reasons.slice(0, 3),
-    suspicionScore: score,
-    statusTone,
-  }
-}
-
 function enrichPeople(records) {
   const buckets = new Map()
 
   records.forEach((record) => {
     const seenKeys = new Set()
-    const normalizedContent = normalizeText(record.content)
 
     record.participants.forEach((participant) => {
       const key = normalizePersonKey(participant.label)
@@ -368,60 +282,12 @@ function enrichPeople(records) {
     })
 
     record.personKeys = [...seenKeys]
-    const includesPodo = record.personKeys.includes(PODO_KEY)
-
-    record.personKeys.forEach((key) => {
-      const bucket = buckets.get(key)
-
-      if (!bucket) {
-        return
-      }
-
-      if (record.sourceId === 'tips' && key === normalizePersonKey(record.values.suspectName)) {
-        const confidence = normalizeText(record.confidence)
-
-        if (confidence === 'high') {
-          bucket.tipScore += 6
-        } else if (confidence === 'medium') {
-          bucket.tipScore += 4
-        } else if (confidence === 'low') {
-          bucket.tipScore += 2
-        }
-      }
-
-      if (includesPodo && key !== PODO_KEY) {
-        bucket.withPodoCount += 1
-        bucket.lastWithPodoTime = Math.max(bucket.lastWithPodoTime, record.sortTime)
-      }
-
-      SUSPICION_PATTERNS.forEach((signal) => {
-        if (signal.pattern.test(normalizedContent)) {
-          bucket.keywordSignals.add(signal.label)
-        }
-      })
-    })
   })
-
-  const latestPodoTime = Math.max(
-    ...records
-      .filter((record) => record.personKeys.includes(PODO_KEY))
-      .map((record) => record.sortTime),
-    0,
-  )
 
   return [...buckets.values()]
     .map((bucket) => {
       const displayName = pickDisplayName(bucket.aliasCounts) || bucket.id
       const aliases = [...bucket.aliasCounts.keys()].sort((left, right) => COLLATOR.compare(left, right))
-      const relatedRecords = records.filter((record) => record.personKeys.includes(bucket.id))
-      const suspicion = buildSuspicionResult(
-        {
-          ...bucket,
-          displayName,
-        },
-        relatedRecords,
-        latestPodoTime,
-      )
 
       return {
         aliases,
@@ -438,21 +304,9 @@ function enrichPeople(records) {
             return SOURCE_PRIORITY[left[0]] - SOURCE_PRIORITY[right[0]]
           })
           .map(([sourceId, count]) => ({ count, sourceId })),
-        withPodoCount: bucket.withPodoCount,
-        ...suspicion,
       }
     })
-    .sort((left, right) => {
-      if (right.suspicionScore !== left.suspicionScore) {
-        return right.suspicionScore - left.suspicionScore
-      }
-
-      if (right.recordIds.length !== left.recordIds.length) {
-        return right.recordIds.length - left.recordIds.length
-      }
-
-      return COLLATOR.compare(left.displayName, right.displayName)
-    })
+    .sort((left, right) => COLLATOR.compare(left.displayName, right.displayName))
 }
 
 function buildConnectedRecordIds(record, recordsById, peopleIndex, locationIndex) {
@@ -503,13 +357,13 @@ export function buildInvestigationModel(loadedSources, sourceErrors) {
     .flatMap(({ source, submissions }) => submissions.map((submission) => normalizeSubmission(source, submission)))
     .sort((left, right) => left.sortTime - right.sortTime)
 
-  const people = enrichPeople(baseRecords)
-  const peopleById = new Map(people.map((person) => [person.id, person]))
+  const basePeople = enrichPeople(baseRecords)
+  const basePeopleById = new Map(basePeople.map((person) => [person.id, person]))
 
-  const records = baseRecords.map((record) => {
+  const recordsForScoring = baseRecords.map((record) => {
     const peopleForRecord = unique(record.personKeys)
       .map((key) => {
-        const person = peopleById.get(key)
+        const person = basePeopleById.get(key)
 
         if (!person) {
           return null
@@ -523,11 +377,33 @@ export function buildInvestigationModel(loadedSources, sourceErrors) {
       ...record,
       participants: record.participants.map((participant) => ({
         ...participant,
-        label: peopleById.get(participant.key)?.displayName || participant.label,
+        label: basePeopleById.get(participant.key)?.displayName || participant.label,
       })),
       people: peopleForRecord,
     }
   })
+
+  const people = scorePeople(basePeople, recordsForScoring)
+  const peopleById = new Map(people.map((person) => [person.id, person]))
+
+  const records = recordsForScoring.map((record) => ({
+    ...record,
+    participants: record.participants.map((participant) => ({
+      ...participant,
+      label: peopleById.get(participant.key)?.displayName || participant.label,
+    })),
+    people: unique(record.personKeys)
+      .map((key) => {
+        const person = peopleById.get(key)
+
+        if (!person) {
+          return null
+        }
+
+        return { key, label: person.displayName }
+      })
+      .filter(Boolean),
+  }))
 
   const recordsById = new Map(records.map((record) => [record.id, record]))
   const peopleIndex = new Map()
@@ -557,11 +433,13 @@ export function buildInvestigationModel(loadedSources, sourceErrors) {
     .reverse()
     .find((record) => record.personKeys.includes(PODO_KEY)) || searchableRecords[searchableRecords.length - 1] || null
 
-  const topSuspect = people.find((person) => person.id !== PODO_KEY) || null
+  const { lastSeenWith, mostSuspicious, topSuspect } = buildSummaryInsights(searchableRecords, people)
 
   return {
+    lastSeenWith,
     lastKnownRecord,
     locations: unique(searchableRecords.map((record) => record.location)).sort((left, right) => COLLATOR.compare(left, right)),
+    mostSuspicious,
     people,
     peopleById,
     records: searchableRecords,

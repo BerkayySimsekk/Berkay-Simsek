@@ -30,5 +30,7 @@ This app is a live investigation dashboard for the “Missing Podo: The Ankara C
 ## Implemented Bonus Features
 1. Podo route flow feature that can accessed through the "Podo Route Flow" button on the top right which allows you to follow Podo's movement stop by stop, inspect the evidence supporting each location, and keep weaker or conflicting clues visible instead of flattening them into one story.
 
-2.
+2. Map view feature that can be accessed through the "Investigation Map" button on the top right which shows the case data geographically instead of as a timeline, it takes every loaded record that has valid coordinates, places it on an interactive map, and groups nearby records into a single pin so the view does not get cluttered.
+
+3. Summary panels for "Last seen with" and "Most suspicious" can be seen on the top right of the investigation dashboard which include short reasonings.
 
