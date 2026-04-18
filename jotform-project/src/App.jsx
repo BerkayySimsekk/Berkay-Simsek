@@ -2,10 +2,13 @@ import { useDeferredValue, useState } from 'react'
 import './App.css'
 import { DetailPanel } from './components/DetailPanel'
 import { FiltersPanel } from './components/FiltersPanel'
+import { PageNavigation } from './components/PageNavigation'
 import { PeoplePanel } from './components/PeoplePanel'
+import { RouteTimelinePanel } from './components/RouteTimelinePanel'
 import { StatusPanel } from './components/StatusPanel'
 import { TimelinePanel } from './components/TimelinePanel'
 import { useInvestigationData } from './hooks/useInvestigationData'
+import { usePageRoute } from './hooks/usePageRoute'
 import { normalizeText } from './lib/investigation'
 
 const CONTENT_FILTERS = [
@@ -63,6 +66,7 @@ function App() {
   const [contentFilter, setContentFilter] = useState('all')
   const [selection, setSelection] = useState(null)
 
+  const { currentPage, goToDashboard, goToRouteFlow } = usePageRoute()
   const deferredSearch = useDeferredValue(searchInput)
   const normalizedSearch = normalizeText(deferredSearch)
   const { error, model, sourceErrors, status } = useInvestigationData(refreshToken)
@@ -97,6 +101,12 @@ function App() {
   if (status === 'loading' && !model) {
     return (
       <div className="app-shell">
+        <PageNavigation
+          currentPage={currentPage}
+          onGoDashboard={goToDashboard}
+          onGoRouteFlow={goToRouteFlow}
+        />
+
         <StatusPanel
           title="Loading Ankara case records"
           message="Fetching cross-form submissions and building linked person clusters."
@@ -109,6 +119,12 @@ function App() {
   if (status === 'error' && !model) {
     return (
       <div className="app-shell">
+        <PageNavigation
+          currentPage={currentPage}
+          onGoDashboard={goToDashboard}
+          onGoRouteFlow={goToRouteFlow}
+        />
+
         <StatusPanel
           actionLabel="Retry"
           message={error}
@@ -149,8 +165,20 @@ function App() {
 
   const focusedPersonId = currentSelection?.type === 'person' ? currentSelection.id : null
 
-  return (
-    <div className="app-shell">
+  const sourceStatusBanner = sourceErrors.length > 0 ? (
+    <div className="status-banner warning-banner">
+      <div>
+        Loaded {sourceSummary.loaded} of {sourceSummary.total} sources. Missing:{' '}
+        {sourceErrors.map((issue) => issue.sourceLabel).join(', ')}.
+      </div>
+      <button className="banner-button" onClick={handleRetry} type="button">
+        Retry failed sources
+      </button>
+    </div>
+  ) : null
+
+  const dashboardPage = (
+    <>
       <header className="case-header panel">
         <div className="case-copy">
           <p className="eyebrow">Frontend Investigation Dashboard</p>
@@ -197,17 +225,7 @@ function App() {
         <div className="status-banner info-banner">Refreshing investigation data…</div>
       ) : null}
 
-      {sourceErrors.length > 0 ? (
-        <div className="status-banner warning-banner">
-          <div>
-            Loaded {sourceSummary.loaded} of {sourceSummary.total} sources. Missing:{' '}
-            {sourceErrors.map((issue) => issue.sourceLabel).join(', ')}.
-          </div>
-          <button className="banner-button" onClick={handleRetry} type="button">
-            Retry failed sources
-          </button>
-        </div>
-      ) : null}
+      {sourceStatusBanner}
 
       <div className="workspace-grid">
         <div className="sidebar-stack">
@@ -260,6 +278,40 @@ function App() {
           onSelectRecord={(recordId) => setSelection({ type: 'record', id: recordId })}
         />
       </div>
+    </>
+  )
+
+  const routeFlowPage = (
+    <>
+      <section className="panel panel-section route-page-hero">
+        <p className="eyebrow">Dedicated Route Page</p>
+        <h1>Podo Route Flow</h1>
+        <p className="lede route-page-copy">
+          Follow Podo&apos;s movement stop by stop, inspect the evidence supporting each
+          location, and keep weaker or conflicting clues visible instead of flattening
+          them into one story.
+        </p>
+      </section>
+
+      {status === 'loading' && model ? (
+        <div className="status-banner info-banner">Refreshing investigation data…</div>
+      ) : null}
+
+      {sourceStatusBanner}
+
+      <RouteTimelinePanel model={model} />
+    </>
+  )
+
+  return (
+    <div className="app-shell">
+      <PageNavigation
+        currentPage={currentPage}
+        onGoDashboard={goToDashboard}
+        onGoRouteFlow={goToRouteFlow}
+      />
+
+      {currentPage === 'route-flow' ? routeFlowPage : dashboardPage}
     </div>
   )
 }
