@@ -2,6 +2,7 @@ import { useDeferredValue, useState } from 'react'
 import './App.css'
 import { DetailPanel } from './components/DetailPanel'
 import { FiltersPanel } from './components/FiltersPanel'
+import { MapViewPage } from './components/MapViewPage'
 import { PageNavigation } from './components/PageNavigation'
 import { PeoplePanel } from './components/PeoplePanel'
 import { RouteTimelinePanel } from './components/RouteTimelinePanel'
@@ -66,7 +67,7 @@ function App() {
   const [contentFilter, setContentFilter] = useState('all')
   const [selection, setSelection] = useState(null)
 
-  const { currentPage, goToDashboard, goToRouteFlow } = usePageRoute()
+  const { currentPage, goToDashboard, goToMapView, goToRouteFlow } = usePageRoute()
   const deferredSearch = useDeferredValue(searchInput)
   const normalizedSearch = normalizeText(deferredSearch)
   const { error, model, sourceErrors, status } = useInvestigationData(refreshToken)
@@ -104,6 +105,7 @@ function App() {
         <PageNavigation
           currentPage={currentPage}
           onGoDashboard={goToDashboard}
+          onGoMapView={goToMapView}
           onGoRouteFlow={goToRouteFlow}
         />
 
@@ -122,6 +124,7 @@ function App() {
         <PageNavigation
           currentPage={currentPage}
           onGoDashboard={goToDashboard}
+          onGoMapView={goToMapView}
           onGoRouteFlow={goToRouteFlow}
         />
 
@@ -303,15 +306,30 @@ function App() {
     </>
   )
 
+  const mapViewPage = (
+    <MapViewPage
+      model={model}
+      onRetry={handleRetry}
+      sourceErrors={sourceErrors}
+      sourceSummary={sourceSummary}
+      status={status}
+    />
+  )
+
   return (
     <div className="app-shell">
       <PageNavigation
         currentPage={currentPage}
         onGoDashboard={goToDashboard}
+        onGoMapView={goToMapView}
         onGoRouteFlow={goToRouteFlow}
       />
 
-      {currentPage === 'route-flow' ? routeFlowPage : dashboardPage}
+      {currentPage === 'map-view'
+        ? mapViewPage
+        : currentPage === 'route-flow'
+          ? routeFlowPage
+          : dashboardPage}
     </div>
   )
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 const DASHBOARD_PATH = '/'
+const MAP_VIEW_PATH = '/map-view'
 const ROUTE_FLOW_PATH = '/route-flow'
 
 function normalizePath(pathname) {
@@ -10,7 +11,17 @@ function normalizePath(pathname) {
 }
 
 function resolvePage(pathname) {
-  return normalizePath(pathname) === ROUTE_FLOW_PATH ? 'route-flow' : 'dashboard'
+  const normalized = normalizePath(pathname)
+
+  if (normalized === ROUTE_FLOW_PATH) {
+    return 'route-flow'
+  }
+
+  if (normalized === MAP_VIEW_PATH) {
+    return 'map-view'
+  }
+
+  return 'dashboard'
 }
 
 export function usePageRoute() {
@@ -45,7 +56,9 @@ export function usePageRoute() {
     currentPage: resolvePage(pathname),
     dashboardPath: DASHBOARD_PATH,
     goToDashboard: () => navigateTo(DASHBOARD_PATH),
+    goToMapView: () => navigateTo(MAP_VIEW_PATH),
     goToRouteFlow: () => navigateTo(ROUTE_FLOW_PATH),
+    mapViewPath: MAP_VIEW_PATH,
     routeFlowPath: ROUTE_FLOW_PATH,
   }
 }

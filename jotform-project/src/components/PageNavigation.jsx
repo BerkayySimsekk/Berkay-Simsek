@@ -1,9 +1,16 @@
-export function PageNavigation({ currentPage, onGoDashboard, onGoRouteFlow }) {
+export function PageNavigation({
+  currentPage,
+  onGoDashboard,
+  onGoMapView,
+  onGoRouteFlow,
+}) {
   return (
     <nav className="page-navigation panel">
       <div className="page-navigation-copy">
         <p className="eyebrow">Case Views</p>
-        <h2 className="page-navigation-title">Switch between the full dashboard and the dedicated route page.</h2>
+        <h2 className="page-navigation-title">
+          Switch between the dashboard, route flow, and the geographic marker view.
+        </h2>
       </div>
 
       <div className="page-navigation-actions">
@@ -13,6 +20,14 @@ export function PageNavigation({ currentPage, onGoDashboard, onGoRouteFlow }) {
           type="button"
         >
           Investigation Dashboard
+        </button>
+
+        <button
+          className={`page-tab ${currentPage === 'map-view' ? 'is-active' : ''}`}
+          onClick={onGoMapView}
+          type="button"
+        >
+          Investigation Map
         </button>
 
         <button

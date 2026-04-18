@@ -27,3 +27,8 @@ This app is a live investigation dashboard for the “Missing Podo: The Ankara C
 
 3. If you click a person, the app shows that person’s aliases, why they matter, where they appear, which sources mention them, and all connected records. If you click a record, it shows the full content, the people involved, the metadata, and other related records around it.
 
+## Implemented Bonus Features
+1. Podo route flow feature that can accessed through the "Podo Route Flow" button on the top right which allows you to follow Podo's movement stop by stop, inspect the evidence supporting each location, and keep weaker or conflicting clues visible instead of flattening them into one story.
+
+2.
+
