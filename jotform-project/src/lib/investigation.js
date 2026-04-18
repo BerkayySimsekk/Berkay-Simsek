@@ -32,6 +32,7 @@ function unique(values) {
   return [...new Set(values.filter(Boolean))]
 }
 
+
 function stripDiacritics(value = '') {
   return String(value).normalize('NFD').replace(/\p{Diacritic}/gu, '')
 }
